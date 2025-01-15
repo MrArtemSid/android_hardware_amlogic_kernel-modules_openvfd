@@ -1,3 +1,5 @@
+EXTRA_CFLAGS += -Wno-switch
+
 ifeq ($(KERNELRELEASE),)
 		PWD = $(shell pwd)
 	        KERNELDIR = ../../../
