@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <signal.h>
 #include "driver/openvfd_drv.h"
+#include <unistd.h>
+#include <string.h>
+#include <sys/stat.h>
 
 #define UNUSED(x)	(void*)(x)
 #define DRV_NAME	"/dev/" DEV_NAME
@@ -108,9 +111,9 @@ void led_display_loop(const struct display_setup *setup)
 	if (setup->user_string) {
 		use_user_string = true;
 		data.mode = DISPLAY_MODE_TITLE;
-		snprintf(data.string_main, sizeof(data.string_secondary), setup->user_string);
+		snprintf(data.string_main, sizeof(data.string_secondary), "%s", setup->user_string);
 		if (setup->secondary_user_string)
-			snprintf(data.string_secondary, sizeof(data.string_secondary), setup->secondary_user_string);
+			snprintf(data.string_secondary, sizeof(data.string_secondary), "%s", setup->secondary_user_string);
 	}
 
 	while(sync_data.isActive) {
@@ -327,6 +330,7 @@ void *display_test_thread_handler(void *arg)
 
 void *named_pipe_thread_handler(void *arg)
 {
+	(void)arg;
 	int file;
 	char buf[1024];
 	int ret = 0, i;
@@ -430,6 +434,7 @@ bool set_display_type(int new_display_type)
 
 void handle_signal(int signal)
 {
+	(void)signal;
 	int file;
 	sync_data.isActive = false;
 	file = open(PIPE_PATH, O_WRONLY);

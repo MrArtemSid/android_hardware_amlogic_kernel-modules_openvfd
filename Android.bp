@@ -1,0 +1,16 @@
+cc_binary {
+    name: "OpenVFDService",
+    srcs: [
+        "OpenVFDService.c",
+    ],
+    shared_libs: [
+        "libm",
+	"libc",
+    ],
+    cflags: [
+        "-Wall",
+    ],
+    ldflags: [],
+    installable: true,  // Make it installable
+    vendor: true,
+}
