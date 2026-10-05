@@ -1,0 +1,15 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+exports_files(["Makefile"])
+
+filegroup(
+    name = "openvfd_srcs",
+    srcs = glob(
+        ["driver/**"],
+        exclude = [
+            "driver/**/*.bmp",
+        ],
+    ),
+)
