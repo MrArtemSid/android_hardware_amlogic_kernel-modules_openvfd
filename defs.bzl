@@ -7,6 +7,6 @@ def openvfd_module(name, kernel_build, deps = None):
         srcs = ["//vendor/amlogic/openvfd:openvfd_srcs"],
         makefile = ["//vendor/amlogic/openvfd:Makefile"],
         deps = deps,
-        outs = ["driver/openvfd.ko"],
+        outs = ["openvfd.ko"],
         kernel_build = kernel_build,
     )
