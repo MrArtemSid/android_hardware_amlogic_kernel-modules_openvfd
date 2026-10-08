@@ -12,10 +12,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 
 #define UNUSED(x)	(void*)(x)
 #define DRV_NAME	"/dev/" DEV_NAME
 #define PIPE_PATH	"/tmp/" DEV_NAME "_service"
+#define LED_ON_PATH	"/sys/class/leds/" DEV_NAME "/led_on"
+#define LED_OFF_PATH	"/sys/class/leds/" DEV_NAME "/led_off"
 
 void select_display_type(void);
 bool set_display_type(int new_display_type);
@@ -25,6 +29,7 @@ bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
 bool is_12h_mode(int argc, char *argv[]);
+bool is_status_icons_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
@@ -44,6 +49,7 @@ struct sync_data {
 struct display_setup {
 	bool is_demo;
 	bool is_12h;
+	bool status_icons;
 	const char *user_string;
 	const char *secondary_user_string;
 };
@@ -97,6 +103,44 @@ void mdelay(int n)
 
 struct sync_data sync_data;
 
+void set_icon(const char *name, bool on)
+{
+	int fd = open(on ? LED_ON_PATH : LED_OFF_PATH, O_WRONLY);
+	if (fd < 0)
+		return;
+	write(fd, name, strlen(name));
+	close(fd);
+}
+
+// Light the eth and wifi icons while the interface has a link.
+void update_network_icons(void)
+{
+	static int eth = -1, wifi = -1;
+	struct ifaddrs *ifaddr, *ifa;
+	int new_eth = 0, new_wifi = 0;
+
+	if (getifaddrs(&ifaddr))
+		return;
+	for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
+		if (!(ifa->ifa_flags & IFF_RUNNING))
+			continue;
+		if (!strncmp(ifa->ifa_name, "eth", 3))
+			new_eth = 1;
+		else if (!strncmp(ifa->ifa_name, "wlan", 4))
+			new_wifi = 1;
+	}
+	freeifaddrs(ifaddr);
+
+	if (new_eth != eth) {
+		set_icon("eth", new_eth);
+		eth = new_eth;
+	}
+	if (new_wifi != wifi) {
+		set_icon("wifi", new_wifi);
+		wifi = new_wifi;
+	}
+}
+
 void led_display_loop(const struct display_setup *setup)
 {
 	static struct vfd_display_data data = { 0 };
@@ -105,8 +149,11 @@ void led_display_loop(const struct display_setup *setup)
 
 	time_t now;
 	struct tm *timenow;
+	unsigned int ticks = 0;
 
 	memset(&data, 0, sizeof(data));
+	if (setup->status_icons)
+		set_icon("power", true);
 
 	if (setup->user_string) {
 		use_user_string = true;
@@ -128,6 +175,9 @@ void led_display_loop(const struct display_setup *setup)
 				}
 
 				select_display_type();
+				// Every 2 s, the loop runs every 0.5 s.
+				if (setup->status_icons && !(ticks++ % 4))
+					update_network_icons();
 				if (sync_data.useBuffer && (sync_data.display_data.mode == DISPLAY_MODE_CLOCK ||
 						sync_data.display_data.mode == DISPLAY_MODE_DATE)) {
 					use_user_string = false;
@@ -481,6 +531,7 @@ int main(int argc, char *argv[])
 		sigaction(SIGINT, &sig_handler, 0);
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
+		setup.status_icons = is_status_icons_mode(argc, argv);
 		setup.user_string = get_user_string(argc, argv);
 		if (setup.user_string)
 			setup.secondary_user_string = get_secondary_user_string(argc, argv);
@@ -556,6 +607,11 @@ bool is_12h_mode(int argc, char *argv[])
 	return is_cmd_option(argc, argv, "-12h");
 }
 
+bool is_status_icons_mode(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-si");
+}
+
 int get_cmd_display_type(int argc, char *argv[])
 {
 	int ret = -1, i;
@@ -626,6 +682,7 @@ bool print_usage(int argc, char *argv[])
 			printf("\t-ss SECONDARY_USER_STRING\tDisplay a smaller secondary string\n\t\t\tin addtion to USER_STRING.");
 			printf("\t-t\t\tRun OpenVFDService in display test mode.\n");
 			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
+			printf("\t-si\t\tLight the power icon, and the eth and wifi icons\n\t\t\twhile the interface has a link.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");
